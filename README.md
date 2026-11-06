@@ -1,37 +1,32 @@
-# ToDus Telegram Bot — S3 + DK ToDus + UDYAT
+# ToDus Telegram Bot — S3 + UDYAT + estado público DK
 
-## Funciones
-- S3: PUT, HEAD, GET, DELETE, LIST paginado.
-- Subida con streaming, reintentos 429/5xx/red, comprobación HEAD, ETag y rate-limit.
-- Descargas con rangos y varios hilos.
-- Prefijo persistente recomendado: `users/df/<telegram_id>/`.
-- DK backend: auth init/check/verify, perfil, listado de subidas, registro de subidas, stats y health.
-- UDYAT: detección de IP y generación de manifiesto `.udyat` para importar en IroS3Dl.
-- Página de salud para Render.
+## Funciones implementadas directamente
+- S3 anónimo: PUT, HEAD, GET, DELETE y LIST paginado.
+- Los archivos se guardan directamente en la raíz de `stream`: `https://s3.todus.cu/stream/<nombre-del-archivo>`.
+- Reintentos de subida, verificación HEAD y descargas por rangos cuando el servidor las admite.
+- Recepción de archivos de Telegram y subida automática.
+- `/lista`, `/borrar`, `/verificar`, `/descargar`, `/udyat`, `/estado`, `/id`, `/ayuda`.
+- `/udyat URL` genera un manifiesto JSON `.udyat` para importar en IroS3Dl usando la IP UDYAT clásica documentada.
+- `/dkstats` y `/dkhealth` consultan únicamente información pública de DK.
+
+## Límite real de DK ToDus
+La documentación del repositorio indica que el inicio de sesión DK devuelve un enlace de autorización asociado a `@DkTodusbot`. Por tanto, no existe en esa documentación un método para crear una sesión DK completa de forma independiente. Para no pedir al usuario que autorice un bot de terceros, `/dklogin`, `/dkme` y `/dkuploads` informan que esa función no está disponible y no intentan autenticarse. Tampoco se falsifican Telegram IDs ni se fabrican JWT.
+
+Las funciones S3 y UDYAT no dependen de la cuenta DK. Los enlaces S3 directos son públicos según el repositorio; no subas archivos sensibles.
+
+## UDYAT: limitación de red
+El manifiesto usa `152.207.206.86` como IP gratuita clásica descrita por el repositorio. Render está fuera de la red ETECSA, así que una prueba desde Render no puede confirmar si el teléfono del usuario tendrá acceso gratuito. La descarga gratuita solo puede funcionar desde una conexión ETECSA compatible en Cuba. La IP puede cambiar o dejar de responder.
+
+El manifiesto `.udyat` se construye con los campos documentados (`f`, `s`, `md5`, `c`, `h`, `original_host`, `platform`). El valor ETag se usa como `md5` porque el API expone ese dato; para archivos grandes o multipart ETag puede no ser un MD5 criptográfico real.
 
 ## Despliegue
 Build: `pip install -r requirements.txt`
 Start: `python main.py`
 
 Variables obligatorias: `API_ID`, `API_HASH`, `BOT_TOKEN`.
-Opcionales: `ALLOWED_IDS`, `MAX_MB`, `S3_TIMEOUT`, `S3_RETRIES`, `DOWNLOAD_THREADS`,
-`DK_BASE`, `DK_AUTH_WAIT`, `UDYAT_IPS`.
+Opcionales: `ALLOWED_IDS`, `MAX_MB`, `S3_TIMEOUT`, `S3_RETRIES`, `DOWNLOAD_THREADS`, `UDYAT_IPS`.
 
-## Comandos
-`/start`, `/ayuda`, `/id`, `/estado`, `/lista`, `/borrar nombre`,
-`/verificar URL`, `/descargar URL`, `/udyat URL`,
-`/dklogin`, `/dkme`, `/dkuploads`, `/dkstats`, `/dkhealth`.
-
-## Importante: DK ToDus
-El repositorio documenta que `/api/v1/auth/verify` acepta un Telegram ID arbitrario si solo se le entrega un temp_token. Por eso el bot NO completa el login directamente: espera a que `/api/v1/auth/check` informe explícitamente `verified`, `authenticated`, `completed` o `success`. El comportamiento real del backend puede cambiar; si su respuesta no expone uno de esos estados, el inicio de sesión fallará de forma cerrada. No se implementan endpoints administrativos de ban/unban ni se falsifica la identidad de otro usuario.
-El JWT se guarda solo en memoria; al reiniciar Render, el usuario debe volver a ejecutar `/dklogin`. No guardar JWT en el repositorio ni en logs.
-
-## Importante: UDYAT
-UDYAT depende de que la conexión salga por la red ETECSA en Cuba. Un bot alojado en Render hace las peticiones desde los centros de datos de Render, no desde el teléfono del usuario en Cuba. Por tanto, el bot solo genera el manifiesto `.udyat` y prueba la disponibilidad desde su propio servidor; eso NO demuestra que la IP sea gratuita desde la conexión del usuario. El `.udyat` debe importarse en IroS3Dl desde una conexión ETECSA compatible.
-La IP UDYAT usa un certificado autofirmado. La verificación TLS se desactiva únicamente para el preflight de las IPs UDYAT indicadas, nunca para el S3 normal ni para DK. No se debe usar esta opción con hosts arbitrarios.
-
-## Seguridad y límites
-- S3 es público y anónimo según el repo: cualquiera con el enlace puede leerlo; cualquiera puede intentar borrar/listar objetos. No subir datos sensibles.
-- `ALLOWED_IDS` limita quién usa el bot, pero no vuelve privados los enlaces S3.
-- La API/servidor, Telegram y Render imponen límites propios. `MAX_MB=0` solo elimina el límite local configurado.
-- El formato de enlace cifrado `dktodus.wev.cu/download/<token>` no se genera: el repositorio describe cifrado ligado a dispositivo/JWT, pero no documenta una implementación interoperable completa ni claves. No se intenta romper ese cifrado.
+## Seguridad
+- El bucket S3 es público y anónimo: cualquiera que conozca o enumere enlaces puede leer, borrar o listar objetos según los permisos del servidor.
+- `ALLOWED_IDS` restringe el uso del bot, pero no convierte los enlaces S3 en privados.
+- La verificación TLS se mantiene activa para S3. No se desactiva TLS para peticiones normales.
