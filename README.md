@@ -6,6 +6,7 @@
 - Reintentos de subida, verificación HEAD y descargas por rangos cuando el servidor las admite.
 - Recepción de archivos de Telegram y subida automática.
 - `/lista`, `/borrar`, `/verificar`, `/descargar`, `/udyat`, `/estado`, `/id`, `/ayuda`.
+- `/verificar URL` realiza HEAD con `httpx`, cabeceras Wget y SNI explícito `s3.todus.cu`; muestra código HTTP y cabeceras de respuesta.
 - `/udyat URL` genera un manifiesto JSON `.udyat` para importar en IroS3Dl usando la IP UDYAT clásica documentada.
 - `/dkstats` y `/dkhealth` consultan únicamente información pública de DK.
 
