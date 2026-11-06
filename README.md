@@ -42,3 +42,7 @@ Los chunks no hacen que la conexión sea automáticamente más rápida. La aplic
 - El manifiesto usa una IP UDYAT configurada y una URL de archivo bajo `/stream/`.
 - El filesystem de Render puede ser efímero; el ajuste de `/chunk` guardado en JSON puede perderse al reiniciar o desplegar. Si sucede, vuelve a enviar el comando.
 - No incluyas tokens ni claves en GitHub.
+
+
+### Corrección de integridad MD5
+Esta versión calcula el MD5 real leyendo el objeto completo antes de crear el manifiesto. No usa el ETag de S3 como MD5, porque los ETag multipart no son necesariamente hashes MD5 del archivo completo. Esta operación requiere transferir el archivo completo una vez desde ToDus al servidor donde corre el bot y puede tardar/consumir transferencia del servicio.
