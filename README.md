@@ -1,33 +1,44 @@
-# ToDus Telegram Bot — S3 + UDYAT + estado público DK
+# Bot Telegram ToDus S3 + UDYAT chunks (experimental)
 
-## Funciones implementadas directamente
-- S3 anónimo: PUT, HEAD, GET, DELETE y LIST paginado.
-- Los archivos se guardan directamente en la raíz de `stream`: `https://s3.todus.cu/stream/<nombre-del-archivo>`.
-- Reintentos de subida, verificación HEAD y descargas por rangos cuando el servidor las admite.
-- Recepción de archivos de Telegram y subida automática.
-- `/lista`, `/borrar`, `/verificar`, `/descargar`, `/udyat`, `/estado`, `/id`, `/ayuda`.
-- `/verificar URL` realiza HEAD con `httpx`, cabeceras Wget y SNI explícito `s3.todus.cu`; muestra código HTTP y cabeceras de respuesta.
-- `/udyat URL` genera un manifiesto JSON `.udyat` para importar en IroS3Dl usando la IP UDYAT clásica documentada.
-- `/dkstats` y `/dkhealth` consultan únicamente información pública de DK.
+## Incluye
+- Recepción automática de archivos por Telegram y subida a `https://s3.todus.cu/stream/<nombre>`.
+- `/lista`, `/borrar NOMBRE`, `/verificar URL`, `/descargar URL`, `/udyat URL`.
+- `/chunk` consulta el tamaño configurado (por defecto 2 MB).
+- `/chunk 2`, `/chunk 5`, `/chunk 10`, `/chunk 15`, `/chunk 20` cambia el tamaño usado al crear manifiestos UDYAT.
+- `/estado`, `/id`, `/ayuda`, `/dkstats`, `/dkhealth`.
+- Servicio HTTP de salud en el puerto `PORT` (por defecto 10000).
 
-## Límite real de DK ToDus
-La documentación del repositorio indica que el inicio de sesión DK devuelve un enlace de autorización asociado a `@DkTodusbot`. Por tanto, no existe en esa documentación un método para crear una sesión DK completa de forma independiente. Para no pedir al usuario que autorice un bot de terceros, `/dklogin`, `/dkme` y `/dkuploads` informan que esa función no está disponible y no intentan autenticarse. Tampoco se falsifican Telegram IDs ni se fabrican JWT.
+## Variables de entorno en Render
+Obligatorias:
+- `API_ID`: API ID de Telegram.
+- `API_HASH`: API hash de Telegram.
+- `BOT_TOKEN`: token del bot.
+- `ALLOWED_IDS`: tu ID numérico de Telegram. Recomendado para restringir el uso.
 
-Las funciones S3 y UDYAT no dependen de la cuenta DK. Los enlaces S3 directos son públicos según el repositorio; no subas archivos sensibles.
-
-## UDYAT: limitación de red
-El manifiesto usa `152.207.206.86` como IP gratuita clásica descrita por el repositorio. Render está fuera de la red ETECSA, así que una prueba desde Render no puede confirmar si el teléfono del usuario tendrá acceso gratuito. La descarga gratuita solo puede funcionar desde una conexión ETECSA compatible en Cuba. La IP puede cambiar o dejar de responder.
-
-El manifiesto `.udyat` se construye con los campos documentados (`f`, `s`, `md5`, `c`, `h`, `original_host`, `platform`). El valor ETag se usa como `md5` porque el API expone ese dato; para archivos grandes o multipart ETag puede no ser un MD5 criptográfico real.
+Opcionales:
+- `MAX_MB=0` (0 = sin límite de tamaño local configurado).
+- `S3_TIMEOUT=3600`
+- `S3_RETRIES=3`
+- `DOWNLOAD_THREADS=4`
+- `UDYAT_IPS=152.207.206.86,152.207.206.88`
+- `UDYAT_CHUNK_CONFIG=udyat_chunk_size.json`
 
 ## Despliegue
-Build: `pip install -r requirements.txt`
-Start: `python main.py`
+1. Haz copia del proyecto actual.
+2. Sube `main.py`, `requirements.txt`, `render.yaml` y este README a la raíz de tu repositorio GitHub.
+3. En Render, comprueba que el servicio ejecute `python main.py` y que las variables anteriores estén configuradas.
+4. Haz deploy.
+5. En Telegram, envía `/chunk` y luego prueba `/chunk 2`.
+6. Sube un archivo pequeño, copia el enlace devuelto y envía `/udyat <enlace>`.
+7. Importa el `.udyat` en UDYAT Downloader y comprueba que descargue el archivo completo y lo reconstruya correctamente.
 
-Variables obligatorias: `API_ID`, `API_HASH`, `BOT_TOKEN`.
-Opcionales: `ALLOWED_IDS`, `MAX_MB`, `S3_TIMEOUT`, `S3_RETRIES`, `DOWNLOAD_THREADS`, `UDYAT_IPS`.
+## Aviso técnico MUY IMPORTANTE sobre UDYAT
+El manifiesto original de este repositorio tenía un único elemento dentro de `c`, con los campos `url` y `size`. Esta versión genera varios elementos con `url`, `size`, `start` y `end` (rangos inclusivos de bytes). No se encontró una especificación oficial verificable que confirme que la versión concreta de UDYAT Downloader que usas reconoce `start` y `end`. Por eso esta función es EXPERIMENTAL: puede que la app rechace el archivo o ignore los rangos. No se debe asumir que la descarga paralela funciona hasta probarla con un archivo pequeño.
 
-## Seguridad
-- El bucket S3 es público y anónimo: cualquiera que conozca o enumere enlaces puede leer, borrar o listar objetos según los permisos del servidor.
-- `ALLOWED_IDS` restringe el uso del bot, pero no convierte los enlaces S3 en privados.
-- La verificación TLS se mantiene activa para S3. No se desactiva TLS para peticiones normales.
+Los chunks no hacen que la conexión sea automáticamente más rápida. La aplicación tiene que solicitar cada rango HTTP (`Range: bytes=inicio-fin`) y ensamblarlos en orden. Además, el servidor debe responder `206 Partial Content` y `Content-Range` correctamente.
+
+## Seguridad y límites
+- Si `ALLOWED_IDS` está vacío, cualquier usuario que encuentre el bot podrá usarlo. Configura tu ID para restringirlo.
+- El manifiesto usa una IP UDYAT configurada y una URL de archivo bajo `/stream/`.
+- El filesystem de Render puede ser efímero; el ajuste de `/chunk` guardado en JSON puede perderse al reiniciar o desplegar. Si sucede, vuelve a enviar el comando.
+- No incluyas tokens ni claves en GitHub.
