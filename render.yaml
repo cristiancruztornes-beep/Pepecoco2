@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: todus-telegram-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: free
+    envVars:
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: ALLOWED_IDS
+        value: ""
+      - key: MAX_MB
+        value: "0"
+      - key: S3_TIMEOUT
+        value: "3600"
+      - key: S3_RETRIES
+        value: "3"
+      - key: DOWNLOAD_THREADS
+        value: "4"
+      - key: DK_BASE
+        value: "https://dk-todus-backend.fastapicloud.dev"
+      - key: DK_AUTH_WAIT
+        value: "180"
+      - key: UDYAT_IPS
+        value: "152.207.206.86,152.207.206.88"
